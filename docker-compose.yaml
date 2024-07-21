@@ -1,0 +1,15 @@
+services:
+  database:
+    image: postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_DB: planner
+      POSTGRES_PASSWORD: donotcrackplease
+    ports:
+      - "5433:5432"
+  api:
+    build: .
+    environment:
+       POSTGRES_CONN_STR: "postgres://admin:donotcrackplease@database/planner?sslmode=disable"
+    depends_on:
+      - database

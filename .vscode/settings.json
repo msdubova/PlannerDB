@@ -1,0 +1,14 @@
+{
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5433,
+            "driver": "PostgreSQL",
+            "username": "admin",
+            "password": "donotcrackplease",
+            "name": "connectionplanner",
+            "database": "planner"
+        }
+    ]
+}
