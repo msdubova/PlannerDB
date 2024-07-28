@@ -3,12 +3,21 @@
         {
             "previewLimit": 50,
             "server": "localhost",
+<<<<<<< HEAD
             "port": 5433,
             "driver": "PostgreSQL",
             "username": "admin",
             "password": "donotcrackplease",
             "name": "connectionplanner",
             "database": "planner"
+=======
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "plannerconnect",
+            "username": "admin",
+            "database": "planner",
+            "password": "donotcrackplease"
+>>>>>>> 42c3a27 (Created Dockerfile, docker-compose)
         }
     ]
 }

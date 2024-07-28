@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 services:
   database:
     image: postgres
@@ -13,3 +14,14 @@ services:
        POSTGRES_CONN_STR: "postgres://admin:donotcrackplease@database/planner?sslmode=disable"
     depends_on:
       - database
+=======
+services:
+  database:
+    image: postgres
+    environment:
+      POSTGRES_DB: planner
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: donotcrackplease
+    ports:
+      - "5432:5432"
+>>>>>>> 42c3a27 (Created Dockerfile, docker-compose)
