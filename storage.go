@@ -1,253 +1,97 @@
-<<<<<<< HEAD
-// package main
-
-// import (
-// 	"fmt"
-// 	"sort"
-// 	"sync"
-// )
-
-// type Storage struct {
-// 	m        sync.Mutex
-// 	lastID   int
-// 	allPlans map[int]Plan
-// 	allUsers map[string]User
-// }
-
-// func NewStorage() *Storage {
-// 	return &Storage{
-// 		allPlans: make(map[int]Plan),
-// 		allUsers: make(map[string]User),
-// 	}
-// }
-
-// func (s *Storage) GetAllPlans() []Plan {
-// 	s.m.Lock()
-// 	defer s.m.Unlock()
-// 	var plans = make([]Plan, 0, len(s.allPlans))
-
-// 	for _, p := range s.allPlans {
-// 		plans = append(plans, p)
-// 	}
-
-// 	sort.Slice(plans, func(i, j int) bool {
-// 		return plans[i].ID < plans[j].ID
-// 	})
-
-// 	return plans
-// }
-
-// func (s *Storage) CreatePlan(p Plan) int {
-// 	s.m.Lock()
-// 	defer s.m.Unlock()
-
-// 	s.lastID++
-// 	p.ID = s.lastID
-// 	s.allPlans[p.ID] = p
-// 	// fmt.Println("Вуху, план створено! Останній id", s.lastID)
-// 	return p.ID
-// }
-
-// func (s *Storage) GetPlanById(id int) (Plan, bool) {
-// 	s.m.Lock()
-// 	defer s.m.Unlock()
-// 	// fmt.Println("Перевіряємо чи існує план з таким ID")
-
-// 	p, ok := s.allPlans[id]
-
-// 	return p, ok
-// }
-
-// func (s *Storage) DeletePlanById(id int) bool {
-// 	s.m.Lock()
-// 	defer s.m.Unlock()
-// 	fmt.Println("Видаляємо план")
-// 	_, ok := s.allPlans[id]
-
-// 	if !ok {
-// 		return false
-// 	}
-
-// 	delete(s.allPlans, id)
-// 	return true
-// }
-
-// func (s *Storage) ToggleCompletion(id int) bool {
-// 	//"Тут ми змінюємо boolean  - змінюємо статус завдання виконане чи ні"
-// 	s.m.Lock()
-// 	defer s.m.Unlock()
-
-// 	plan, ok := s.allPlans[id]
-// 	if !ok {
-// 		return false
-// 	}
-
-// 	plan.Complete = !plan.Complete
-// 	s.allPlans[id] = plan
-
-// 	return true
-// }
-
-// func (s *Storage) ChangePlan(id int, updatedPlan Plan) bool {
-
-// 	s.m.Lock()
-// 	defer s.m.Unlock()
-// 	_, ok := s.allPlans[id]
-// 	if !ok {
-// 		return false
-// 	}
-
-// 	s.allPlans[id] = updatedPlan
-// 	return true
-
-// }
-
-// func (s *Storage) GetUserByUserName(username string) (User, bool) {
-// 	s.m.Lock()
-// 	defer s.m.Unlock()
-
-// 	u, ok := s.allUsers[username]
-
-// 	return u, ok
-// }
-
-// func (s *Storage) CreateUser(u User) bool {
-// 	s.m.Lock()
-// 	defer s.m.Unlock()
-
-// 	_, ok := s.allUsers[u.Username]
-
-// 	if ok {
-// 		return false
-// 	}
-
-// 	s.allUsers[u.Username] = u
-// 	return true
-// }
-=======
 package main
 
 import (
+	"database/sql"
 	"fmt"
-	"sort"
-	"sync"
 )
 
 type Storage struct {
-	m        sync.Mutex
-	lastID   int
-	allPlans map[int]Plan
-	allUsers map[string]User
+	db *sql.DB
 }
 
-func NewStorage() *Storage {
-	return &Storage{
-		allPlans: make(map[int]Plan),
-		allUsers: make(map[string]User),
+func newStorage(connString string) (*Storage, error) {
+	db, err := sql.Open("postgres", connString)
+	if err != nil {
+		return nil, fmt.Errorf("opening database: %w", err)
 	}
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("pinging database: %w", err)
+	}
+
+	return &Storage{db: db}, nil
 }
 
-func (s *Storage) GetAllPlans() []Plan {
-	s.m.Lock()
-	defer s.m.Unlock()
-	var plans = make([]Plan, 0, len(s.allPlans))
+func (s *Storage) GetAllPlans() ([]Plan, error) {
+	rows, err := s.db.Query("SELECT * FROM plans")
 
-	for _, p := range s.allPlans {
+	if err != nil {
+		return nil, fmt.Errorf("selecting plans: %w", err)
+	}
+	defer rows.Close()
+	var plans []Plan
+
+	for rows.Next() {
+		var p Plan
+		err := rows.Scan(&p.ID, &p.Descriptio, &p.Title, &p.Complete)
+
+		if err != nil {
+			return nil, fmt.Errorf("scanning rows: %w", err)
+		}
+
 		plans = append(plans, p)
 	}
-
-	sort.Slice(plans, func(i, j int) bool {
-		return plans[i].ID < plans[j].ID
-	})
-
-	return plans
+	return plans, nil
 }
 
-func (s *Storage) CreatePlan(p Plan) int {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	s.lastID++
-	p.ID = s.lastID
-	s.allPlans[p.ID] = p
-	// fmt.Println("Вуху, план створено! Останній id", s.lastID)
-	return p.ID
+func (s *Storage) CreatePlan(plan Plan) (int, error) {
+	var id int
+	err := s.db.QueryRow("INSERT INTO plans (title, descriptio, complete) VALUES ($1, $2, $3) RETURNING id", plan.Title, plan.Descriptio, plan.Complete).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("Помилка вставки плану: %w", err)
+	}
+	return id, nil
 }
 
-func (s *Storage) GetPlanById(id int) (Plan, bool) {
-	s.m.Lock()
-	defer s.m.Unlock()
-	// fmt.Println("Перевіряємо чи існує план з таким ID")
-
-	p, ok := s.allPlans[id]
-
-	return p, ok
+func (s *Storage) GetPlanById(planId int) (Plan, bool) {
+	var plan Plan
+	err := s.db.QueryRow("SELECT id, title, descriptio, complete FROM plans WHERE id = $1", planId).Scan(&plan.ID, &plan.Title, &plan.Descriptio, &plan.Complete)
+	if err != nil {
+		return plan, false
+	}
+	return plan, true
 }
 
-func (s *Storage) DeletePlanById(id int) bool {
-	s.m.Lock()
-	defer s.m.Unlock()
-	fmt.Println("Видаляємо план")
-	_, ok := s.allPlans[id]
-
-	if !ok {
+func (s *Storage) UpdatePlan(id int, updatedPlan Plan) bool {
+	_, err := s.db.Exec("UPDATE plans SET title = $1, descriptio = $2, complete = $3 WHERE id = $4", updatedPlan.Title, updatedPlan.Descriptio, updatedPlan.Complete, id)
+	if err != nil {
+		fmt.Println("Помилка оновлення плану", err)
 		return false
 	}
-
-	delete(s.allPlans, id)
 	return true
 }
 
-func (s *Storage) ToggleCompletion(id int) bool {
-	//"Тут ми змінюємо boolean  - змінюємо статус завдання виконане чи ні"
-	s.m.Lock()
-	defer s.m.Unlock()
+func (s *Storage) DeletePlan(id int) {
+	_, err := s.db.Exec("DELETE FROM plans WHERE id = $1", id)
+	if err != nil {
+		fmt.Println("Помилка видалення плану", err)
+	}
+}
 
-	plan, ok := s.allPlans[id]
-	if !ok {
+func (s *Storage) CreateUser(user User) bool {
+	_, err := s.db.Exec("INSERT INTO users (id, username, password) VALUES ($1, $2, $3)", user.ID, user.Username, user.Password)
+	if err != nil {
+		fmt.Println("Помилка створення користувача", err)
 		return false
 	}
-
-	plan.Complete = !plan.Complete
-	s.allPlans[id] = plan
-
 	return true
 }
 
-func (s *Storage) ChangePlan(id int, updatedPlan Plan) bool {
-
-	s.m.Lock()
-	defer s.m.Unlock()
-	_, ok := s.allPlans[id]
-	if !ok {
-		return false
+func (s *Storage) GetUser(username string) (User, bool) {
+	var user User
+	err := s.db.QueryRow("SELECT id, username, password FROM users WHERE username = $1", username).Scan(&user.ID, &user.Username, &user.Password)
+	if err != nil {
+		return user, false
 	}
-
-	s.allPlans[id] = updatedPlan
-	return true
-
+	return user, true
 }
-
-func (s *Storage) GetUserByUserName(username string) (User, bool) {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	u, ok := s.allUsers[username]
-
-	return u, ok
-}
-
-func (s *Storage) CreateUser(u User) bool {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	_, ok := s.allUsers[u.Username]
-
-	if ok {
-		return false
-	}
-
-	s.allUsers[u.Username] = u
-	return true
-}
->>>>>>> 42c3a27 (Created Dockerfile, docker-compose)

@@ -1,20 +1,4 @@
-<<<<<<< HEAD
-services:
-  database:
-    image: postgres
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_DB: planner
-      POSTGRES_PASSWORD: donotcrackplease
-    ports:
-      - "5433:5432"
-  api:
-    build: .
-    environment:
-       POSTGRES_CONN_STR: "postgres://admin:donotcrackplease@database/planner?sslmode=disable"
-    depends_on:
-      - database
-=======
+
 services:
   database:
     image: postgres
@@ -24,4 +8,11 @@ services:
       POSTGRES_PASSWORD: donotcrackplease
     ports:
       - "5432:5432"
->>>>>>> 42c3a27 (Created Dockerfile, docker-compose)
+  api: 
+    build: .
+    environment:
+      POSTGRES_CONN_STR: "postgres://admin:donotcrackplease@database/planner?sslmode=disable"
+    depends_on:
+      - database
+    ports:
+      - "8080:8080"

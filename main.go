@@ -3,60 +3,34 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-
-	_ "github.com/lib/pq"
-
 	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
+
+	_ "github.com/lib/pq"
+	"github.com/rs/zerolog/log"
 )
 
-// func init() {
-// 	log.Info().Msg("Imported main package")
-// }
+func init() {
+	log.Info().Msg("Imported main package")
+}
 
 func main() {
-	// db, err := sql.Open("postgres", "postgres://admin:donotcrackplease@database:5432/planner?sslmode=disable")
-	// if err != nil {
-	// 	log.Fatal().Msgf("Opening database: %v", err)
-	// }
 
-	// if err := db.Ping(); err != nil {
-	// 	log.Fatal().Msgf("Pinging database: %v", err)
-	// }
+	storage, err := newStorage(os.Getenv("POSTGRES_CONN_STR"))
+	if err != nil {
+		log.Fatal().Msgf("Creating storage: %v", err)
+	}
 
-	// rows, err := db.Query("SELECT * FROM plans")
-	// if err != nil {
-	// 	log.Fatal().Msgf("Quering DB, selecting plans: %v", err)
-	// }
+	auth := &Auth{s: storage}
+	plans := &PlanResource{s: storage}
+	users := &UserResource{s: storage}
 
-	// var plans []Plan
-	// for rows.Next() {
-	// 	var p Plan
-	// 	err := rows.Scan(&p.ID, &p.Title)
-
-	// 	if err != nil {
-	// 		log.Fatal().Msgf("Scanning rows: %v", err)
-
-	// 	}
-
-	// 	plans = append(plans, p)
-	// }
-
-	// log.Info().Msgf("Got plans: %v", plans)
 	mux := http.NewServeMux()
-	s := NewStorage()
-	plans := PlanResource{
-		s: NewStorage(),
-	}
 
-	users := UserResource{
-		s: s,
-	}
-	auth := Auth{
-		s: s,
-	}
 	mux.HandleFunc("POST /users", users.CreateUser)
+
 	mux.HandleFunc("GET /plans", auth.checkAuth(plans.GetAllPlans))
 	mux.HandleFunc("POST /plans", auth.checkAuth(plans.CreatePlan))
 	mux.HandleFunc("DELETE /plans/{id}", auth.checkAuth(plans.DeletePlan))
@@ -73,9 +47,13 @@ type PlanResource struct {
 }
 
 func (p *PlanResource) GetAllPlans(w http.ResponseWriter, r *http.Request) {
-	plans := p.s.GetAllPlans()
-
-	err := json.NewEncoder(w).Encode(plans)
+	plans, err := p.s.GetAllPlans()
+	if err != nil {
+		fmt.Println("помилка отрмання планв", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	err = json.NewEncoder(w).Encode(plans)
 	if err != nil {
 		fmt.Println("ПОмилка кодування в JSON", err)
 		return
@@ -92,7 +70,7 @@ func (p *PlanResource) CreatePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	plan.ID = p.s.CreatePlan(plan)
+	plan.ID, err = p.s.CreatePlan(plan)
 
 	err = json.NewEncoder(w).Encode(plan)
 	if err != nil {
@@ -117,7 +95,8 @@ func (p *PlanResource) DeletePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p.s.DeletePlanById(planId)
+	p.s.DeletePlan(planId)
+	w.WriteHeader(http.StatusOK)
 }
 
 func (p *PlanResource) UpdatePlan(w http.ResponseWriter, r *http.Request) {
@@ -144,7 +123,7 @@ func (p *PlanResource) UpdatePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	success := p.s.ChangePlan(planId, UpdatedPlan)
+	success := p.s.UpdatePlan(planId, UpdatedPlan)
 	if !success {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -173,5 +152,5 @@ func (ur *UserResource) CreateUser(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-
+	w.WriteHeader(http.StatusOK)
 }
