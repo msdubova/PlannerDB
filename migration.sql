@@ -11,7 +11,7 @@
 
 -- CREATE TABLE users (
 --     id SERIAL PRIMARY KEY,
---     name VARCHAR,
+--     username VARCHAR,
 --     password VARCHAR
 -- )
 
@@ -31,8 +31,8 @@
 -- ALTER TABLE plans
 -- ADD COLUMN user_id INTEGER NOT NULL REFERENCES users(id);
 
-INSERT INTO plans (title, descriptio, complete, user_id) 
-VALUES ('My First Plan', 'Description of the plan', false, 15622);
+-- INSERT INTO plans (title, descriptio, complete, user_id) 
+-- VALUES ('My First Plan', 'Description of the plan', false, 15622);
 
 -- SELECT *
 -- FROM plans
