@@ -13,14 +13,13 @@ import (
 )
 
 func init() {
-	log.Info().Msg("Imported main package")
+	log.Info().Msg("Імпортовано головний пакет")
 }
 
 func main() {
-
 	storage, err := newStorage(os.Getenv("POSTGRES_CONN_STR"))
 	if err != nil {
-		log.Fatal().Msgf("Creating storage: %v", err)
+		log.Fatal().Msgf("Помилка створення бази даних: %v", err)
 	}
 
 	auth := &Auth{s: storage}
@@ -33,8 +32,8 @@ func main() {
 
 	mux.HandleFunc("GET /plans", auth.checkAuth(plans.GetAllPlans))
 	mux.HandleFunc("POST /plans", auth.checkAuth(plans.CreatePlan))
-	mux.HandleFunc("DELETE /plans/", auth.checkAuth(plans.DeletePlan))
-	mux.HandleFunc("PUT /plans/", auth.checkAuth(plans.UpdatePlan))
+	mux.HandleFunc("DELETE /plans/{id}", auth.checkAuth(plans.DeletePlan))
+	mux.HandleFunc("PUT /plans/{id}", auth.checkAuth(plans.UpdatePlan))
 
 	fmt.Println("Слухаєм :8080")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
@@ -49,14 +48,35 @@ type PlanResource struct {
 func (p *PlanResource) GetAllPlans(w http.ResponseWriter, r *http.Request) {
 	plans, err := p.s.GetAllPlans()
 	if err != nil {
-		fmt.Println("помилка отрмання планв", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Помилка отримання планів з бази даних:, %v", err), http.StatusInternalServerError)
 		return
 	}
+
 	err = json.NewEncoder(w).Encode(plans)
 	if err != nil {
-		fmt.Println("ПОмилка кодування в JSON", err)
+		http.Error(w, fmt.Sprintf("Помилка кодування планів у JSON: %v", err), http.StatusInternalServerError)
+	}
+}
+
+func (p *PlanResource) GetPlanByID(w http.ResponseWriter, r *http.Request) {
+	idValue := r.PathValue("id")
+	planID, err := strconv.Atoi(idValue)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Неправильний ID плану: %v", err), http.StatusBadRequest)
 		return
+	}
+
+	plan, err := p.s.GetPlanByID(planID)
+	if err != nil {
+
+		http.Error(w, fmt.Sprintf("Помилка отримання плану з бази даних: %v", err), http.StatusInternalServerError)
+
+		return
+	}
+
+	err = json.NewEncoder(w).Encode(plan)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Помилка кодування плану у JSON: %v", err), http.StatusInternalServerError)
 	}
 }
 
@@ -65,72 +85,74 @@ func (p *PlanResource) CreatePlan(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&plan)
 	if err != nil {
-		fmt.Println("ПОмилка декодування", err)
-		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Помилка декодування запиту: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	plan.ID, err = p.s.CreatePlan(plan)
+	planID, err := p.s.CreatePlan(plan)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Помилка створення плану в базі даних: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	plan.ID = planID
 
 	err = json.NewEncoder(w).Encode(plan)
 	if err != nil {
-		fmt.Println("ПОмилка кодування в JSON", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		http.Error(w, fmt.Sprintf("Помилка кодування плану у JSON`: %v", err), http.StatusInternalServerError)
 	}
 }
 
 func (p *PlanResource) DeletePlan(w http.ResponseWriter, r *http.Request) {
 	idValue := r.PathValue("id")
-	planId, err := strconv.Atoi(idValue)
+	planID, err := strconv.Atoi(idValue)
 	if err != nil {
-		fmt.Println("Не існує нічого з таким id")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-
-	}
-	_, ok := p.s.GetPlanById(planId)
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
+		http.Error(w, fmt.Sprintf("Неправильний ID плану: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	p.s.DeletePlan(planId)
+	_, err = p.s.GetPlanByID(planID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Помилка перевірки наявності плану: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	err = p.s.DeletePlan(planID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Помилка видалення плану: %v", err), http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 }
 
 func (p *PlanResource) UpdatePlan(w http.ResponseWriter, r *http.Request) {
 	idValue := r.PathValue("id")
-	planId, err := strconv.Atoi(idValue)
+	planID, err := strconv.Atoi(idValue)
 	if err != nil {
-		fmt.Println("Не існує нічого з таким id")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-
-	}
-	_, ok := p.s.GetPlanById(planId)
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
+		http.Error(w, "Неправильний ID плану", http.StatusBadRequest)
 		return
 	}
 
-	var UpdatedPlan Plan
-	err = json.NewDecoder(r.Body).Decode(&UpdatedPlan)
-
+	var updatedPlan Plan
+	err = json.NewDecoder(r.Body).Decode(&updatedPlan)
 	if err != nil {
-		fmt.Println("ПОмилка декодування JSON", err)
-		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Помилка декодування запиту: %v", err), http.StatusBadRequest)
+		return
+	}
+	_, err = p.s.GetPlanByID(planID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Помилка перевірки наявності плану: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	success := p.s.UpdatePlan(planId, UpdatedPlan)
-	if !success {
-		w.WriteHeader(http.StatusInternalServerError)
+	err = p.s.UpdatePlan(planID, updatedPlan)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Помилка оновлення плану: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-
 }
 
 type UserResource struct {
@@ -142,15 +164,17 @@ func (ur *UserResource) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
-		fmt.Println("ПОмилка декодування", err)
-		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Помилка декодування запиту: %v", err), http.StatusBadRequest)
 		return
 	}
+
 	user.ID = rand.Intn(90000) + 10000
-	ok := ur.s.CreateUser(user)
-	if !ok {
-		w.WriteHeader(http.StatusBadRequest)
+
+	err = ur.s.CreateUser(user)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Помилка створення користувача в базі даних: %v", err), http.StatusInternalServerError)
 		return
 	}
+
 	w.WriteHeader(http.StatusOK)
 }
