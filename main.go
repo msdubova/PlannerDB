@@ -33,8 +33,8 @@ func main() {
 
 	mux.HandleFunc("GET /plans", auth.checkAuth(plans.GetAllPlans))
 	mux.HandleFunc("POST /plans", auth.checkAuth(plans.CreatePlan))
-	mux.HandleFunc("DELETE /plans/{id}", auth.checkAuth(plans.DeletePlan))
-	mux.HandleFunc("PUT /plans/{id}", auth.checkAuth(plans.UpdatePlan))
+	mux.HandleFunc("DELETE /plans/", auth.checkAuth(plans.DeletePlan))
+	mux.HandleFunc("PUT /plans/", auth.checkAuth(plans.UpdatePlan))
 
 	fmt.Println("Слухаєм :8080")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
