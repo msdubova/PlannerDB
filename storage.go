@@ -86,12 +86,13 @@ func (s *Storage) DeletePlan(id int) error {
 	return nil
 }
 
-func (s *Storage) CreateUser(user User) error {
-	_, err := s.db.Exec("INSERT INTO users (id, username, password) VALUES ($1, $2, $3)", user.ID, user.Username, user.Password)
+func (s *Storage) CreateUser(user User) (int, error) {
+	var id int
+	err := s.db.QueryRow("INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id", user.Username, user.Password).Scan(&id)
 	if err != nil {
-		return fmt.Errorf("помилка створення користувача: %w", err)
+		return 0, fmt.Errorf("помилка створення користувача: %w", err)
 	}
-	return nil
+	return id, nil
 }
 
 func (s *Storage) GetUser(username string) (User, bool) {
@@ -101,4 +102,39 @@ func (s *Storage) GetUser(username string) (User, bool) {
 		return user, false
 	}
 	return user, true
+}
+
+func (s *Storage) GetAllUsers() ([]User, error) {
+	rows, err := s.db.Query("SELECT id, username, password FROM users")
+	if err != nil {
+		return nil, fmt.Errorf("помилка отримання юзерів: %v", err)
+	}
+
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var user User
+		err := rows.Scan(&user.ID, &user.Username, &user.Password)
+		if err != nil {
+			return nil, fmt.Errorf("помилка зчитування юзерів: %v", err)
+		}
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("помилка при ітерації: %v", err)
+	}
+
+	return users, nil
+}
+
+func (s *Storage) CheckUsernameExists(username string) (bool, error) {
+	var exists bool
+	query := "SELECT exists (SELECT 1 FROM users WHERE username=$1)"
+	err := s.db.QueryRow(query, username).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
 }

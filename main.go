@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -29,6 +28,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /users", users.CreateUser)
+	mux.HandleFunc("GET /users", users.GetAllUsers)
 
 	mux.HandleFunc("GET /plans", auth.checkAuth(plans.GetAllPlans))
 	mux.HandleFunc("POST /plans", auth.checkAuth(plans.CreatePlan))
@@ -101,6 +101,7 @@ func (p *PlanResource) CreatePlan(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Помилка кодування плану у JSON`: %v", err), http.StatusInternalServerError)
 	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func (p *PlanResource) DeletePlan(w http.ResponseWriter, r *http.Request) {
@@ -161,20 +162,47 @@ type UserResource struct {
 
 func (ur *UserResource) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var user User
-
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Помилка декодування запиту: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	user.ID = rand.Intn(90000) + 10000
+	exists, err := ur.s.CheckUsernameExists(user.Username)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Помилка перевірки користувача в базі даних: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if exists {
+		http.Error(w, "Користувач з таким ім'ям вже існує", http.StatusConflict)
+		return
+	}
 
-	err = ur.s.CreateUser(user)
+	userID, err := ur.s.CreateUser(user)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Помилка створення користувача в базі даних: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	user.ID = userID
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(w).Encode(user)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Помилка кодування користувача у JSON: %v", err), http.StatusInternalServerError)
+	}
+}
+
+func (ur *UserResource) GetAllUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := ur.s.GetAllUsers()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Помилка отримання юзерів з бази даних: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(users)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Помилка кодування юзерів у JSON: %v", err), http.StatusInternalServerError)
+	}
 }
