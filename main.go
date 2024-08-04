@@ -71,7 +71,7 @@ func (p *PlanResource) GetPlanByID(w http.ResponseWriter, r *http.Request) {
 	plan, err := p.s.GetPlanByID(planID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			http.Error(w, "План не знайдено", http.StatusNotFound)
+			http.Error(w, fmt.Sprintf("План не знайдено: %v", err), http.StatusNotFound)
 			return
 		}
 		http.Error(w, fmt.Sprintf("Помилка отримання плану з бази даних: %v", err), http.StatusInternalServerError)
