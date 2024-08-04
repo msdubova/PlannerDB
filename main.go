@@ -1,7 +1,9 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -34,7 +36,7 @@ func main() {
 	mux.HandleFunc("POST /plans", auth.checkAuth(plans.CreatePlan))
 	mux.HandleFunc("DELETE /plans/{id}", auth.checkAuth(plans.DeletePlan))
 	mux.HandleFunc("PUT /plans/{id}", auth.checkAuth(plans.UpdatePlan))
-
+	mux.HandleFunc("GET /plans/{id}", auth.checkAuth(plans.GetPlanByID))
 	fmt.Println("Слухаєм :8080")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		fmt.Println("Невдала спроба створити та прослухати 8080", err)
@@ -68,9 +70,11 @@ func (p *PlanResource) GetPlanByID(w http.ResponseWriter, r *http.Request) {
 
 	plan, err := p.s.GetPlanByID(planID)
 	if err != nil {
-
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "План не знайдено", http.StatusNotFound)
+			return
+		}
 		http.Error(w, fmt.Sprintf("Помилка отримання плану з бази даних: %v", err), http.StatusInternalServerError)
-
 		return
 	}
 
